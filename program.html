@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dijkstra's Algorithm Visualization</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="400" height="400"></canvas>
+    <button id="resetButton">Reset</button>
+    <a href="program2.html">A* Algorithm</a>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 20;
+        const rows = canvas.height / gridSize;
+        const cols = canvas.width / gridSize;
+
+        let endNode = null; // Logical target node
+        let visualTargetNode = null; // Visual target node
+
+        // Define the graph
+        let graph = {};
+
+        function generateGraph() {
+            graph = {};
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const nodeId = i + '-' + j;
+                    graph[nodeId] = {};
+                    if (i > 0) graph[nodeId][(i - 1) + '-' + j] = 1;
+                    if (i < rows - 1) graph[nodeId][(i + 1) + '-' + j] = 1;
+                    if (j > 0) graph[nodeId][i + '-' + (j - 1)] = 1;
+                    if (j < cols - 1) graph[nodeId][i + '-' + (j + 1)] = 1;
+                }
+            }
+            randomlyPlaceObstacles();
+        }
+
+        function randomlyPlaceObstacles() {
+
+            const numObstacles = Math.floor(Math.random() * (rows * cols * 0.4));
+            for (let i = 0; i < numObstacles; i++) {
+                const randomRow = Math.floor(Math.random() * rows);
+                const randomCol = Math.floor(Math.random() * cols);
+                const nodeId = randomRow + '-' + randomCol;
+                delete graph[nodeId];
+                ctx.fillStyle = 'black';
+                ctx.fillRect(randomCol * gridSize + 1, randomRow * gridSize + 1, gridSize - 2, gridSize - 2);
+            }
+        }
+
+        function placeVisualTarget() {
+            const randomRow = Math.floor(Math.random() * rows);
+            const randomCol = Math.floor(Math.random() * cols);
+            visualTargetNode = randomRow + '-' + randomCol;
+            ctx.fillStyle = 'red';
+            ctx.fillRect(randomCol * gridSize + 1, randomRow * gridSize + 1, gridSize - 2, gridSize - 2);
+        }
+
+        async function dijkstra(graph, start, end) {
+            const distances = {};
+            const previous = {};
+            const queue = new PriorityQueue();
+
+            for (let vertex in graph) {
+                distances[vertex] = Infinity;
+                previous[vertex] = null;
+            }
+
+            distances[start] = 0;
+            queue.enqueue(start, 0);
+
+            while (!queue.isEmpty()) {
+                const currentVertex = queue.dequeue();
+
+                if (currentVertex === end) {
+                    return reconstructPath(previous, end);
+                }
+
+                for (let neighbor in graph[currentVertex]) {
+                    const neighborDistance = distances[currentVertex] + graph[currentVertex][neighbor];
+                    if (neighborDistance < distances[neighbor]) {
+                        distances[neighbor] = neighborDistance;
+                        previous[neighbor] = currentVertex;
+                        queue.enqueue(neighbor, neighborDistance);
+                        await animateVisit(neighbor); 
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        class PriorityQueue {
+            constructor() {
+                this.elements = [];
+            }
+
+            enqueue(element, priority) {
+                this.elements.push({ element, priority });
+                this.elements.sort((a, b) => a.priority - b.priority);
+            }
+
+            dequeue() {
+                return this.elements.shift().element;
+            }
+
+            isEmpty() {
+                return this.elements.length === 0;
+            }
+        }
+
+        function reconstructPath(previous, end) {
+            const path = [];
+            let current = end;
+            while (current !== null) {
+                path.unshift(current);
+                current = previous[current];
+            }
+            return path;
+        }
+
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const x = j * gridSize;
+                    const y = i * gridSize;
+                    ctx.strokeRect(x, y, gridSize, gridSize);
+                }
+            }
+        }
+
+        function drawPath(path) {
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            if (path.length > 0) {
+                const [startX, startY] = path[0].split('-').map(Number);
+                ctx.moveTo(startY * gridSize + gridSize / 2, startX * gridSize + gridSize / 2);
+                for (let i = 1; i < path.length; i++) {
+                    const [x, y] = path[i].split('-').map(Number);
+                    ctx.lineTo(y * gridSize + gridSize / 2, x * gridSize + gridSize / 2);
+                }
+            }
+            ctx.stroke();
+        }
+
+        function animateVisit(nodeId) {
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    const [x, y] = nodeId.split('-').map(Number);
+                    if (graph[nodeId]) {
+                        ctx.fillStyle = 'green';
+                    } else {
+                        ctx.fillStyle = 'black';
+                    }
+                    ctx.fillRect(y * gridSize + 1, x * gridSize + 1, gridSize - 2, gridSize - 2);
+                    resolve();
+                }, 30);
+            });
+        }
+
+        function resetCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            generateGraph();
+            drawGrid();
+            placeVisualTarget();
+        }
+
+        async function main() {
+            resetCanvas();
+            const start = '0-0';
+            endNode = visualTargetNode;
+            const path = await dijkstra(graph, start, endNode);
+            if (path) {
+                drawPath(path);
+            } else {
+                console.log('No path found');
+            }
+        }
+
+        document.getElementById('resetButton').addEventListener('click', main);
+        main();
+    </script>
+</body>
+</html>

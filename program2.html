@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A* Algorithm Visualization</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="400" height="400"></canvas>
+    <button id="resetButton">Reset</button>
+    <a href="program.html">Djikstra's Algorithm</a>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 20;
+        const rows = canvas.height / gridSize;
+        const cols = canvas.width / gridSize;
+
+        let endNode = null; // Logical target node
+        let visualTargetNode = null; // Visual target node
+
+        // Define the graph
+        let graph = {};
+
+        function generateGraph() {
+            graph = {};
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const nodeId = i + '-' + j;
+                    graph[nodeId] = {};
+                    if (i > 0) graph[nodeId][(i - 1) + '-' + j] = 1;
+                    if (i < rows - 1) graph[nodeId][(i + 1) + '-' + j] = 1;
+                    if (j > 0) graph[nodeId][i + '-' + (j - 1)] = 1;
+                    if (j < cols - 1) graph[nodeId][i + '-' + (j + 1)] = 1;
+                }
+            }
+            randomlyPlaceObstacles();
+        }
+
+        function randomlyPlaceObstacles() {
+            // Number of obstacles
+            const numObstacles = Math.floor(Math.random() * (rows * cols * 0.2)); // Adjust obstacle density here
+            for (let i = 0; i < numObstacles; i++) {
+                const randomRow = Math.floor(Math.random() * rows);
+                const randomCol = Math.floor(Math.random() * cols);
+                const nodeId = randomRow + '-' + randomCol;
+                delete graph[nodeId]; // Remove connection from graph
+                ctx.fillStyle = 'black'; // Fill with black color
+                ctx.fillRect(randomCol * gridSize + 1, randomRow * gridSize + 1, gridSize - 2, gridSize - 2);
+            }
+        }
+
+        function placeVisualTarget() {
+            const randomRow = Math.floor(Math.random() * rows);
+            const randomCol = Math.floor(Math.random() * cols);
+            visualTargetNode = randomRow + '-' + randomCol;
+            ctx.fillStyle = 'red';
+            ctx.fillRect(randomCol * gridSize + 1, randomRow * gridSize + 1, gridSize - 2, gridSize - 2);
+        }
+
+        // A* algorithm
+        async function aStar(graph, start, end) {
+            const openSet = new Set();
+            const closedSet = new Set();
+            const cameFrom = {};
+            const gScore = {};
+            const fScore = {};
+
+            for (let node in graph) {
+                gScore[node] = Infinity;
+                fScore[node] = Infinity;
+            }
+
+            gScore[start] = 0;
+            fScore[start] = heuristic(start, end);
+            openSet.add(start);
+
+            while (openSet.size > 0) {
+                const current = getLowestFScore(openSet, fScore);
+                if (current === end) {
+                    return reconstructPath(cameFrom, end);
+                }
+
+                openSet.delete(current);
+                closedSet.add(current);
+
+                for (let neighbor in graph[current]) {
+                    if (closedSet.has(neighbor)) {
+                        continue;
+                    }
+
+                    const tentativeGScore = gScore[current] + graph[current][neighbor];
+
+                    if (!openSet.has(neighbor)) {
+                        openSet.add(neighbor);
+                    } else if (tentativeGScore >= gScore[neighbor]) {
+                        continue;
+                    }
+
+                    cameFrom[neighbor] = current;
+                    gScore[neighbor] = tentativeGScore;
+                    fScore[neighbor] = gScore[neighbor] + heuristic(neighbor, end);
+                    await animateVisit(neighbor); // Animate visit to neighbor
+                }
+            }
+
+            return null;
+        }
+
+        function heuristic(node, goal) {
+            const [x1, y1] = node.split('-').map(Number);
+            const [x2, y2] = goal.split('-').map(Number);
+            return Math.abs(x1 - x2) + Math.abs(y1 - y2); // Manhattan distance
+        }
+
+        function getLowestFScore(set, fScore) {
+            let lowestNode = null;
+            let lowestFScore = Infinity;
+            set.forEach(node => {
+                if (fScore[node] < lowestFScore) {
+                    lowestNode = node;
+                    lowestFScore = fScore[node];
+                }
+            });
+            return lowestNode;
+        }
+
+        // Reconstruct path
+        function reconstructPath(cameFrom, current) {
+            const path = [current];
+            while (cameFrom[current]) {
+                current = cameFrom[current];
+                path.unshift(current);
+            }
+            return path;
+        }
+
+        // Draw grid
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const x = j * gridSize;
+                    const y = i * gridSize;
+                    ctx.strokeRect(x, y, gridSize, gridSize);
+                }
+            }
+        }
+
+        // Draw path
+        function drawPath(path) {
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            if (path.length > 0) {
+                const [startX, startY] = path[0].split('-').map(Number);
+                ctx.moveTo(startY * gridSize + gridSize / 2, startX * gridSize + gridSize / 2);
+                for (let i = 1; i < path.length; i++) {
+                    const [x, y] = path[i].split('-').map(Number);
+                    ctx.lineTo(y * gridSize + gridSize / 2, x * gridSize + gridSize / 2);
+                }
+            }
+            ctx.stroke();
+        }
+
+        // Animate visit to node
+        function animateVisit(nodeId) {
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    const [x, y] = nodeId.split('-').map(Number);
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(y * gridSize + 1, x * gridSize + 1, gridSize - 2, gridSize - 2);
+                    resolve();
+                }, 35);
+            });
+        }
+
+        // Reset the canvas
+        function resetCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            generateGraph();
+            drawGrid();
+            placeVisualTarget();
+        }
+
+        // Main function
+        async function main() {
+            resetCanvas();
+            const start = '0-0';
+            endNode = visualTargetNode;
+            const path = await aStar(graph, start, endNode);
+            if (path) {
+                drawPath(path);
+            } else {
+                console.log('No path found');
+            }
+        }
+
+        document.getElementById('resetButton').addEventListener('click', main);
+        main();
+    </script>
+</body>
+</html>
